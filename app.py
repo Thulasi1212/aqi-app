@@ -5,7 +5,7 @@ import pickle
 
 @st.cache_resource
 def load_pipeline():
-    with open('aqi_pipeline_fresh.pkl','rb') as file:
+    with open('aqi_pipeline.pkl','rb') as file:
         pipeline=pickle.load(file)
     return pipeline['trfr'],pipeline['transformer']
 
