@@ -1,145 +1,127 @@
 import streamlit as st
-import pandas as pd
 import pickle
+import pandas as pd
 
-st.set_page_config(page_title='AQI App', page_icon='🌫️', layout='wide')
+st.set_page_config(page_title="AQI Predictor", page_icon="🌫️", layout="centered")
+st.title("🌫️ AQI Predictor")
+st.markdown("Enter pollutant values and city to predict **AQI** and **AQI Bucket**.")
 
-# ─────────────────────────────────────────
-# LOAD MODELS
-# ─────────────────────────────────────────
+# ─── Load both pkl files ───────────────────────────────────────────────────────
 @st.cache_resource
-def load_regressor():
-    with open('aqi_pipeline.pkl', 'rb') as f:
-        data = pickle.load(f)
-    return data['trfr'], data['transformer']
+def load_models():
+    with open("aqi_pipeline.pkl", "rb") as f:
+        reg_bundle = pickle.load(f)
+    # reg_bundle["transformer"] → ColumnTransformer (StandardScaler + OrdinalEncoder)
+    # reg_bundle["trfr"]        → RandomForestRegressor
 
-trfr, transformer = load_regressor()
+    with open("aqi_classifier.pkl", "rb") as f:
+        clf_bundle = pickle.load(f)
+    # clf_bundle["cl_transformer"] → ColumnTransformer (RobustScaler + OrdinalEncoder)
+    # clf_bundle["xgb"]            → XGBClassifier (standalone, NOT a Pipeline)
+    # clf_bundle["label_encoder"]  → LabelEncoder
+    # clf_bundle["classes"]        → le.classes_.tolist()
 
-classifier_available = False
+    return reg_bundle, clf_bundle
+
 try:
-    @st.cache_resource
-    def load_classifier():
-        with open('aqi_classifier.pkl', 'rb') as f:
-            data = pickle.load(f)
-        return data['trfr'], data['transformer'], data['label_encoder'], data['classes']
-    clf_model, clf_transformer, le, classes = load_classifier()
-    classifier_available = True
-except Exception:
-    pass
+    reg_bundle, clf_bundle = load_models()
+    models_loaded = True
+except FileNotFoundError as e:
+    st.error(f"❌ Model file not found: {e}. "
+             "Place aqi_pipeline.pkl and aqi_classifier.pkl in the same folder as app.py.")
+    models_loaded = False
 
-# ─────────────────────────────────────────
-# CATEGORY CONFIG
-# ─────────────────────────────────────────
-category_config = {
-    'Good':         ('🟢', 'success', 'Air quality is excellent.'),
-    'Satisfactory': ('🟡', 'success', 'Acceptable air quality.'),
-    'Moderate':     ('🟠', 'warning', 'May cause discomfort to sensitive people.'),
-    'Poor':         ('🔴', 'warning', 'Breathing discomfort for most people.'),
-    'Very Poor':    ('🟣', 'error',   'Serious health effects for most people.'),
-    'Severe':       ('⚫', 'error',   'Hazardous — affects healthy people too.'),
-}
+# ─── Input form ───────────────────────────────────────────────────────────────
+st.markdown("---")
+st.subheader("📥 Input Features")
 
-# ─────────────────────────────────────────
-# SIDEBAR — INPUTS
-# ─────────────────────────────────────────
-st.sidebar.header('📍 Location')
-city = st.sidebar.selectbox('City', [
-    'Ahmedabad', 'Aizawl', 'Amaravati', 'Amritsar', 'Bengaluru',
-    'Bhopal', 'Brajrajnagar', 'Chandigarh', 'Chennai', 'Coimbatore',
-    'Delhi', 'Ernakulam', 'Gurugram', 'Guwahati', 'Hyderabad',
-    'Jaipur', 'Jorapokhar', 'Kochi', 'Kolkata', 'Lucknow',
-    'Mumbai', 'Patna', 'Shillong', 'Talcher', 'Thiruvananthapuram',
-    'Visakhapatnam'
+cities = sorted([
+    "Ahmedabad", "Aizawl", "Amaravati", "Amritsar", "Bengaluru", "Bhopal",
+    "Brajrajnagar", "Chandigarh", "Chennai", "Coimbatore", "Delhi", "Ernakulam",
+    "Gurugram", "Guwahati", "Hyderabad", "Jaipur", "Jorapokhar", "Kochi",
+    "Kolkata", "Lucknow", "Mumbai", "Munger", "Nagpur", "Patna", "Shillong",
+    "Talcher", "Thiruvananthapuram", "Visakhapatnam"
 ])
 
-st.sidebar.header('💨 Pollutant Levels')
-pm25    = st.sidebar.number_input('PM2.5 (μg/m³)', 0.0, 500.0, 50.0)
-no      = st.sidebar.number_input('NO (μg/m³)',     0.0, 500.0, 20.0)
-no2     = st.sidebar.number_input('NO2 (μg/m³)',    0.0, 200.0, 40.0)
-nox     = st.sidebar.number_input('NOx (ppb)',      0.0, 500.0, 50.0)
-co      = st.sidebar.number_input('CO (mg/m³)',     0.0,  50.0,  1.0)
-so2     = st.sidebar.number_input('SO2 (μg/m³)',    0.0, 100.0, 10.0)
-o3      = st.sidebar.number_input('O3 (μg/m³)',     0.0, 300.0, 50.0)
-benzene = st.sidebar.number_input('Benzene (μg/m³)',0.0,  50.0,  2.0)
+col1, col2 = st.columns(2)
 
-# ─────────────────────────────────────────
-# MAIN PAGE
-# ─────────────────────────────────────────
-st.title('🌫️ Air Quality Index App')
-st.write('Enter pollutant levels in the sidebar and click **Predict** to get both AQI score and category.')
+with col1:
+    city    = st.selectbox("🏙️ City", cities)
+    pm25    = st.number_input("PM2.5 (µg/m³)",  min_value=0.0, max_value=1000.0, value=50.0,  step=0.1)
+    no      = st.number_input("NO (µg/m³)",      min_value=0.0, max_value=500.0,  value=10.0,  step=0.1)
+    no2     = st.number_input("NO2 (µg/m³)",     min_value=0.0, max_value=500.0,  value=20.0,  step=0.1)
+    nox     = st.number_input("NOx (ppb)",        min_value=0.0, max_value=500.0,  value=30.0,  step=0.1)
 
-if not classifier_available:
-    st.warning('Classifier model not found. Only regression results will be shown.')
+with col2:
+    co      = st.number_input("CO (mg/m³)",       min_value=0.0, max_value=100.0,  value=1.0,   step=0.01)
+    so2     = st.number_input("SO2 (µg/m³)",      min_value=0.0, max_value=500.0,  value=10.0,  step=0.1)
+    o3      = st.number_input("O3 (µg/m³)",       min_value=0.0, max_value=500.0,  value=30.0,  step=0.1)
+    benzene = st.number_input("Benzene (µg/m³)",  min_value=0.0, max_value=100.0,  value=1.0,   step=0.01)
 
-st.divider()
+# ─── Predict button ────────────────────────────────────────────────────────────
+st.markdown("---")
 
-if st.button('🔍 Predict AQI', type='primary', use_container_width=True):
+if st.button("🔍 Predict AQI & AQI Bucket", use_container_width=True, disabled=not models_loaded):
 
-    # Build full input with engineered features (both models use same 11 columns)
-    input_df = pd.DataFrame({
-        'City': [city], 'PM2.5': [pm25], 'NO': [no], 'NO2': [no2],
-        'NOx': [nox], 'CO': [co], 'SO2': [so2], 'O3': [o3], 'Benzene': [benzene],
-        'Pollution_Index': [pm25 + no2 + so2],
-        'NOx_ratio':       [nox / (no + 1)]
-    })
+    input_df = pd.DataFrame([{
+        "PM2.5":   pm25,
+        "NO":      no,
+        "NO2":     no2,
+        "NOx":     nox,
+        "CO":      co,
+        "SO2":     so2,
+        "O3":      o3,
+        "Benzene": benzene,
+        "City":    city
+    }])
 
-    # Regression prediction
-    reg_processed = transformer.transform(input_df)
-    aqi_value     = trfr.predict(reg_processed)[0]
+    # ── REGRESSION (AQI value) ──────────────────────────────────────────────
+    # Both saved separately → manual 2-step: transform then predict
+    reg_transformer = reg_bundle["transformer"]   # ColumnTransformer
+    rf_model        = reg_bundle["trfr"]           # RandomForestRegressor
+    x_reg_trans     = reg_transformer.transform(input_df)
+    aqi_predicted   = rf_model.predict(x_reg_trans)[0]
 
-    # Classification prediction
-    if classifier_available:
-        clf_processed = clf_transformer.transform(input_df)
-        pred_encoded  = clf_model.predict(clf_processed)
-        pred_proba    = clf_model.predict_proba(clf_processed)[0]
-        pred_label    = le.inverse_transform(pred_encoded)[0]
-        emoji, alert_type, description = category_config.get(pred_label, ('🔵', 'info', ''))
+    # ── CLASSIFICATION (AQI Bucket) ─────────────────────────────────────────
+    # Both saved separately → manual 2-step: transform then predict
+    clf_transformer = clf_bundle["cl_transformer"]  # ColumnTransformer
+    xgb_model       = clf_bundle["xgb"]              # XGBClassifier
+    label_encoder   = clf_bundle["label_encoder"]    # LabelEncoder
+    x_clf_trans     = clf_transformer.transform(input_df)
+    bucket_encoded  = xgb_model.predict(x_clf_trans)[0]
+    bucket_label    = label_encoder.inverse_transform([bucket_encoded])[0]
 
-    # Results Layout
-    st.subheader('📊 Results')
-    col1, col2 = st.columns(2)
+    # ── Display results ──────────────────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("📊 Prediction Results")
 
-    with col1:
-        st.markdown('### 📈 AQI Score')
-        st.metric(label='Predicted AQI', value=f'{aqi_value:.1f}')
+    res1, res2 = st.columns(2)
+    with res1:
+        st.metric(label="🌡️ Predicted AQI", value=f"{aqi_predicted:.2f}")
+    with res2:
+        bucket_icons = {
+            "Good":                "🟢",
+            "Satisfactory":        "🟡",
+            "Moderately Polluted": "🟠",
+            "Poor":                "🔴",
+            "Very Poor":           "🟣",
+            "Severe":              "⚫",
+        }
+        icon = bucket_icons.get(bucket_label, "🔵")
+        st.metric(label="🗂️ AQI Bucket", value=f"{icon} {bucket_label}")
 
-        if aqi_value <= 50:
-            st.success('🟢 **Good** — Air quality is excellent')
-        elif aqi_value <= 100:
-            st.success('🟡 **Satisfactory** — Acceptable air quality')
-        elif aqi_value <= 200:
-            st.warning('🟠 **Moderate** — May cause discomfort to sensitive people')
-        elif aqi_value <= 300:
-            st.warning('🔴 **Poor** — Breathing discomfort for most people')
-        elif aqi_value <= 400:
-            st.error('🟣 **Very Poor** — Serious health effects likely')
-        else:
-            st.error('⚫ **Severe** — Hazardous for everyone')
-
-    with col2:
-        st.markdown('### 🏷️ AQI Category')
-        if classifier_available:
-            st.metric(label='Predicted Category', value=f'{emoji} {pred_label}')
-
-            if alert_type == 'success':
-                st.success(f'_{description}_')
-            elif alert_type == 'warning':
-                st.warning(f'_{description}_')
-            else:
-                st.error(f'_{description}_')
-
-            st.markdown('**Confidence per Category:**')
-            proba_df = pd.DataFrame({
-                'Category':    classes,
-                'Probability': pred_proba
-            }).sort_values('Probability', ascending=False)
-            st.bar_chart(proba_df.set_index('Category')['Probability'])
-        else:
-            st.info('Classifier model not available.')
-
-    st.divider()
-    with st.expander('🔎 View Input Details'):
-        st.dataframe(
-            input_df[['City','PM2.5','NO','NO2','NOx','CO','SO2','O3','Benzene']],
-            use_container_width=True
-        )
+    # ── Health advisory ──────────────────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("💡 Health Advisory")
+    if aqi_predicted <= 50:
+        st.success("**Good** — Air quality is satisfactory. Enjoy outdoor activities.")
+    elif aqi_predicted <= 100:
+        st.info("**Satisfactory** — Acceptable air quality. Sensitive people should limit prolonged outdoor exertion.")
+    elif aqi_predicted <= 200:
+        st.warning("**Moderately Polluted** — Sensitive groups may experience health effects.")
+    elif aqi_predicted <= 300:
+        st.warning("**Poor** — Everyone may begin to experience health effects. Sensitive groups should limit outdoor activity.")
+    elif aqi_predicted <= 400:
+        st.error("**Very Poor** — Health alert: everyone may experience serious health effects. Avoid outdoor activity.")
+    else:
+        st.error("**Severe** — Health emergency. Stay indoors and keep windows closed.")
