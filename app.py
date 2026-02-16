@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import pickle
 
-<<<<<<< HEAD
+
 
 @st.cache_resource
 def load_pipeline():
@@ -17,7 +17,7 @@ st.write('Enter Environmental parameters to predict AQI')
 
 st.sidebar.header('Location')
 city=st.sidebar.selectbox('City',[
-=======
+
 st.set_page_config(page_title='AQI App', page_icon='🌫️', layout='wide')
 
 # ─────────────────────────────────────────
@@ -58,13 +58,13 @@ category_config = {
 # ─────────────────────────────────────────
 st.sidebar.header('📍 Location')
 city = st.sidebar.selectbox('City', [
->>>>>>> 54187dd (Added AQI classifier)
+
     'Ahmedabad', 'Aizawl', 'Amaravati', 'Amritsar', 'Bengaluru',
     'Bhopal', 'Brajrajnagar', 'Chandigarh', 'Chennai', 'Coimbatore',
     'Delhi', 'Ernakulam', 'Gurugram', 'Guwahati', 'Hyderabad',
     'Jaipur', 'Jorapokhar', 'Kochi', 'Kolkata', 'Lucknow',
     'Mumbai', 'Patna', 'Shillong', 'Talcher', 'Thiruvananthapuram',
-<<<<<<< HEAD
+
     'Visakhapatnam'])
 
 st.sidebar.header('Pollutant Levels')
@@ -95,7 +95,7 @@ if st.button('Predict AQI',type='primary'):
         st.error('**Hazardous**')
     with st.expander('View Input Details'):
         st.dataframe(input_data)
-=======
+
     'Visakhapatnam'
 ])
 
@@ -187,8 +187,8 @@ if st.button('🔍 Predict AQI', type='primary', use_container_width=True):
         else:
             st.info('Classifier model not available.')
 
-    # ── Input Summary ──
+
     st.divider()
     with st.expander('🔎 View Input Details'):
         st.dataframe(base_input, use_container_width=True)
->>>>>>> 54187dd (Added AQI classifier)
+
