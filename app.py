@@ -29,19 +29,16 @@ def load_regressor():
         pipeline = pickle.load(f)
     return pipeline['trfr'], pipeline['transformer']
 
-@st.cache_resource
-def load_classifier():
-    with open('aqi_classifier.pkl', 'rb') as f:
-        data = pickle.load(f)
-    return data['pipeline'], data['label_encoder'], data['classes']
-
-trfr, transformer = load_regressor()
-
 classifier_available = False
 try:
+    @st.cache_resource
+    def load_classifier():
+        with open('aqi_classifier.pkl', 'rb') as f:
+            data = pickle.load(f)
+        return data['pipeline'], data['label_encoder'], data['classes']
     clf_pipeline, le, classes = load_classifier()
     classifier_available = True
-except FileNotFoundError:
+except Exception:
     pass
 
 # ─────────────────────────────────────────
