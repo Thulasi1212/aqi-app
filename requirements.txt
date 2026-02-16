@@ -1,4 +1,9 @@
 streamlit
 pandas
 scikit-learn
+<<<<<<< HEAD
 numpy
+=======
+numpy
+lightgbm
+>>>>>>> 54187dd (Added AQI classifier)
