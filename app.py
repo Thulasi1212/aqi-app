@@ -10,8 +10,8 @@ st.set_page_config(page_title='AQI App', page_icon='🌫️', layout='wide')
 @st.cache_resource
 def load_regressor():
     with open('aqi_pipeline.pkl', 'rb') as f:
-        pipeline = pickle.load(f)
-    return pipeline['trfr'], pipeline['transformer']
+        data = pickle.load(f)
+    return data['trfr'], data['transformer']
 
 trfr, transformer = load_regressor()
 
@@ -75,24 +75,21 @@ st.divider()
 
 if st.button('🔍 Predict AQI', type='primary', use_container_width=True):
 
-    # Base input for regressor
-    base_input = pd.DataFrame({
+    # Build full input with engineered features (both models use same 11 columns)
+    input_df = pd.DataFrame({
         'City': [city], 'PM2.5': [pm25], 'NO': [no], 'NO2': [no2],
-        'NOx': [nox], 'CO': [co], 'SO2': [so2], 'O3': [o3], 'Benzene': [benzene]
+        'NOx': [nox], 'CO': [co], 'SO2': [so2], 'O3': [o3], 'Benzene': [benzene],
+        'Pollution_Index': [pm25 + no2 + so2],
+        'NOx_ratio':       [nox / (no + 1)]
     })
 
-    # Classifier input with engineered features
-    clf_input = base_input.copy()
-    clf_input['Pollution_Index'] = clf_input['PM2.5'] + clf_input['NO2'] + clf_input['SO2']
-    clf_input['NOx_ratio']       = clf_input['NOx'] / (clf_input['NO'] + 1)
-
     # Regression prediction
-    reg_processed = transformer.transform(base_input)
+    reg_processed = transformer.transform(input_df)
     aqi_value     = trfr.predict(reg_processed)[0]
 
     # Classification prediction
     if classifier_available:
-        clf_processed = clf_transformer.transform(clf_input)
+        clf_processed = clf_transformer.transform(input_df)
         pred_encoded  = clf_model.predict(clf_processed)
         pred_proba    = clf_model.predict_proba(clf_processed)[0]
         pred_label    = le.inverse_transform(pred_encoded)[0]
@@ -142,4 +139,7 @@ if st.button('🔍 Predict AQI', type='primary', use_container_width=True):
 
     st.divider()
     with st.expander('🔎 View Input Details'):
-        st.dataframe(base_input, use_container_width=True)
+        st.dataframe(
+            input_df[['City','PM2.5','NO','NO2','NOx','CO','SO2','O3','Benzene']],
+            use_container_width=True
+        )
