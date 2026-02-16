@@ -21,8 +21,8 @@ try:
     def load_classifier():
         with open('aqi_classifier.pkl', 'rb') as f:
             data = pickle.load(f)
-        return data['pipeline'], data['label_encoder'], data['classes']
-    clf_pipeline, le, classes = load_classifier()
+        return data['trfr'], data['transformer'], data['label_encoder'], data['classes']
+    clf_model, clf_transformer, le, classes = load_classifier()
     classifier_available = True
 except Exception:
     pass
@@ -75,25 +75,27 @@ st.divider()
 
 if st.button('🔍 Predict AQI', type='primary', use_container_width=True):
 
-    # Build input dataframes
+    # Base input for regressor
     base_input = pd.DataFrame({
         'City': [city], 'PM2.5': [pm25], 'NO': [no], 'NO2': [no2],
         'NOx': [nox], 'CO': [co], 'SO2': [so2], 'O3': [o3], 'Benzene': [benzene]
     })
 
+    # Classifier input with engineered features
     clf_input = base_input.copy()
     clf_input['Pollution_Index'] = clf_input['PM2.5'] + clf_input['NO2'] + clf_input['SO2']
     clf_input['NOx_ratio']       = clf_input['NOx'] / (clf_input['NO'] + 1)
 
-    # Regression
+    # Regression prediction
     reg_processed = transformer.transform(base_input)
     aqi_value     = trfr.predict(reg_processed)[0]
 
-    # Classification
+    # Classification prediction
     if classifier_available:
-        pred_encoded = clf_pipeline.predict(clf_input)
-        pred_proba   = clf_pipeline.predict_proba(clf_input)[0]
-        pred_label   = le.inverse_transform(pred_encoded)[0]
+        clf_processed = clf_transformer.transform(clf_input)
+        pred_encoded  = clf_model.predict(clf_processed)
+        pred_proba    = clf_model.predict_proba(clf_processed)[0]
+        pred_label    = le.inverse_transform(pred_encoded)[0]
         emoji, alert_type, description = category_config.get(pred_label, ('🔵', 'info', ''))
 
     # Results Layout
@@ -131,7 +133,7 @@ if st.button('🔍 Predict AQI', type='primary', use_container_width=True):
 
             st.markdown('**Confidence per Category:**')
             proba_df = pd.DataFrame({
-                'Category':    le.classes_,
+                'Category':    classes,
                 'Probability': pred_proba
             }).sort_values('Probability', ascending=False)
             st.bar_chart(proba_df.set_index('Category')['Probability'])
