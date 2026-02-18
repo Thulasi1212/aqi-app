@@ -251,70 +251,69 @@ with right_col:
         try:
             # Regressor (manual transform — not a pipeline)
             X_trans   = reg_transformer.transform(input_df)
-            aqi_value = reg_model.predict(X_trans)[0]
+            aqi_value = float(reg_model.predict(X_trans)[0])
 
-            # Classifier (pipeline handles transform internally)
+            # Classifier — pipeline handles transform internally
             aqi_encoded  = int(clf_pipeline.predict(input_df)[0])
-            # Use label_mapping for guaranteed string decode: {0:'Good', 1:'Moderate',...}
-            aqi_category = label_mapping[aqi_encoded]
+            aqi_category = label_mapping[aqi_encoded]  # e.g. 2 -> 'Poor'
 
-            # Probabilities
-            proba        = clf_pipeline.predict_proba(input_df)[0] if hasattr(clf_pipeline, 'predict_proba') else None
-            class_labels = [label_mapping[i] for i in sorted(label_mapping.keys())]
+            # Build prob_data NOW with plain Python strings — no numpy in session_state
+            proba_raw = clf_pipeline.predict_proba(input_df)[0]
+            sorted_keys = sorted(label_mapping.keys())
+            prob_categories = [str(label_mapping[i]) for i in sorted_keys]
+            prob_values     = [round(float(proba_raw[i]) * 100, 2) for i in sorted_keys]
 
             st.session_state.results = {
-                'aqi_value':    aqi_value,
-                'aqi_category': aqi_category,
-                'proba':        proba,
-                'class_labels': class_labels,
-                'city':         city,
-                'input_df':     input_df,
+                'aqi_value':       aqi_value,
+                'aqi_category':    aqi_category,
+                'prob_categories': prob_categories,  # ['Good','Moderate','Poor',...]
+                'prob_values':     prob_values,       # [5.2, 12.3, 45.1, ...]
+                'city':            city,
+                'input_df':        input_df.to_dict('records'),
             }
         except Exception as e:
-            st.error(f"Prediction failed: {e}")
+            st.error(f'Prediction failed: {e}')
             st.session_state.results = None
 
     # Render results (persists across reruns via session_state)
     if st.session_state.results:
         r = st.session_state.results
-        color = AQI_COLORS.get(r['aqi_category'], "#4ecaa0")
+        color = AQI_COLORS.get(r['aqi_category'], '#4ecaa0')
 
         # ── Top cards: AQI value + Category ──
         card1, card2 = st.columns(2)
 
         with card1:
-            st.markdown(f"""
+            st.markdown(f'''
             <div class="result-card">
                 <div class="section-label">📈 Regression · AQI Value</div>
-                <div class="aqi-number">{r['aqi_value']:.1f}</div>
+                <div class="aqi-number">{r["aqi_value"]:.1f}</div>
                 <div class="model-tag">RandomForest Regressor</div>
             </div>
-            """, unsafe_allow_html=True)
+            ''', unsafe_allow_html=True)
 
         with card2:
-            st.markdown(f"""
+            st.markdown(f'''
             <div class="result-card">
                 <div class="section-label">🏷️ Classification · Category</div>
-                <div class="aqi-category" style="color:{color}; margin: 0.5rem 0;">● {r['aqi_category']}</div>
+                <div class="aqi-category" style="color:{color}; margin: 0.5rem 0;">● {r["aqi_category"]}</div>
                 <div class="model-tag">XGBoost Classifier</div>
             </div>
-            """, unsafe_allow_html=True)
+            ''', unsafe_allow_html=True)
 
         # ── Advisory ──
-        st.info(ADVISORIES.get(r['aqi_category'], "Monitor air quality regularly."))
+        st.info(ADVISORIES.get(r['aqi_category'], 'Monitor air quality regularly.'))
 
         st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 
         # ── Classifier Report ──
-        if r['proba'] is not None:
-            st.markdown("**🧾 Classifier Report — Probability per Category**")
+        if r['prob_categories']:
+            st.markdown('**🧾 Classifier Report — Probability per Category**')
 
-            # Use label_mapping directly: {0:'Good', 1:'Moderate', ...} — no inverse_transform needed
-            decoded_names = [label_mapping[i] for i in sorted(label_mapping.keys())]
-
+            # prob_df built entirely from plain Python strings stored in session_state
             prob_df = pd.DataFrame({
-                'Category':      decoded_names,
-                'Probability %': [round(float(p) * 100, 2) for p in r['proba']]
+                'Category':      r['prob_categories'],
+                'Probability %': r['prob_values']
             }).sort_values('Probability %', ascending=False).reset_index(drop=True)
 
             def highlight_row(row):
