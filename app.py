@@ -256,29 +256,9 @@ with left_col:
 # ═══════════════════════════════
 with right_col:
 
-    # ── Panel header + legend on same row ──
-    _chips = ""
-    for _idx in sorted(label_mapping.keys()):
-        _cat = label_mapping[_idx]
-        _dot = AQI_COLORS.get(_cat, "#4ecaa0")
-        _chips += (
-            f'<span style="display:inline-flex;align-items:center;gap:3px;margin-left:4px;'
-            f'background:rgba(255,255,255,0.04);border:1px solid rgba(78,202,160,0.1);'
-            f'border-radius:4px;padding:1px 5px;white-space:nowrap;">'
-            f'<span style="width:6px;height:6px;border-radius:50%;background:{_dot};display:inline-block;"></span>'
-            f'<span style="color:#c0ccc8;font-size:0.65rem;">{_idx}=<b style="color:#e8f4f0;">{_cat}</b></span>'
-            f'</span>'
-        )
-    st.markdown(
-        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;">'
-        f'<span style="font-family:Syne,sans-serif;font-size:1.1rem;font-weight:700;color:#e8f4f0;">📊 Prediction Results</span>'
-        f'<div style="display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;">'
-        f'<span style="color:#4a7a68;font-size:0.62rem;margin-right:3px;">🔑</span>{_chips}'
-        f'</div></div>',
-        unsafe_allow_html=True
-    )
+    st.markdown("#### 📊 Prediction Results")
 
-    # Run prediction when button clicked
+        # Run prediction when button clicked
     if predict_clicked:
         input_df = pd.DataFrame([{
             'City': city, 'PM2.5': pm25, 'NO': no, 'NO2': no2,
