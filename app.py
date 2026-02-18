@@ -152,10 +152,12 @@ def load_models():
 
 try:
     reg_loaded, clf_loaded = load_models()
-    reg_transformer = reg_loaded['transformer']   # ColumnTransformer (not a pipeline)
-    reg_model       = reg_loaded['trfr']           # RandomForestRegressor
-    clf_pipeline    = clf_loaded['pipeline']       # Full Pipeline
-    clf_le          = clf_loaded['label_encoder']  # LabelEncoder
+    reg_transformer = reg_loaded['transformer']    # ColumnTransformer (not a pipeline)
+    reg_model       = reg_loaded['trfr']            # RandomForestRegressor
+    clf_pipeline    = clf_loaded['pipeline']        # Full Pipeline
+    clf_le          = clf_loaded['label_encoder']   # LabelEncoder
+    # {0:'Good', 1:'Moderate', 2:'Poor', 3:'Satisfactory', 4:'Severe', 5:'Very Poor'}
+    label_mapping   = {int(k): str(v) for k, v in clf_loaded['label_mapping'].items()}
 except Exception as e:
     st.error(f"Error loading models: {e}")
     st.stop()
@@ -252,14 +254,13 @@ with right_col:
             aqi_value = reg_model.predict(X_trans)[0]
 
             # Classifier (pipeline handles transform internally)
-            aqi_encoded  = clf_pipeline.predict(input_df)[0]
-            # ✅ inverse_transform: converts numeric label (0,1,2...) → 'Good','Poor' etc.
-            aqi_category = clf_le.inverse_transform([aqi_encoded])[0]
+            aqi_encoded  = int(clf_pipeline.predict(input_df)[0])
+            # Use label_mapping for guaranteed string decode: {0:'Good', 1:'Moderate',...}
+            aqi_category = label_mapping[aqi_encoded]
 
-            # Probabilities — inverse_transform class names for all classes
-            proba = clf_pipeline.predict_proba(input_df)[0] if hasattr(clf_pipeline, 'predict_proba') else None
-            # clf_le.classes_ already holds the string labels in encoded order
-            class_labels = clf_le.classes_   # e.g. ['Good','Moderately Polluted','Poor',...]
+            # Probabilities
+            proba        = clf_pipeline.predict_proba(input_df)[0] if hasattr(clf_pipeline, 'predict_proba') else None
+            class_labels = [label_mapping[i] for i in sorted(label_mapping.keys())]
 
             st.session_state.results = {
                 'aqi_value':    aqi_value,
@@ -308,12 +309,8 @@ with right_col:
         if r['proba'] is not None:
             st.markdown("**🧾 Classifier Report — Probability per Category**")
 
-            # inverse_transform every class index → guaranteed string labels
-            # clf_le.classes_ order matches proba array order exactly
-            n_classes     = len(r['proba'])
-            all_indices   = list(range(n_classes))
-            # inverse_transform converts [0,1,2,...] → ['Good','Poor','Severe',...]
-            decoded_names = [str(clf_le.inverse_transform([i])[0]) for i in all_indices]
+            # Use label_mapping directly: {0:'Good', 1:'Moderate', ...} — no inverse_transform needed
+            decoded_names = [label_mapping[i] for i in sorted(label_mapping.keys())]
 
             prob_df = pd.DataFrame({
                 'Category':      decoded_names,
