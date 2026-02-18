@@ -84,7 +84,7 @@ if st.button("🔍 Predict AQI & AQI Bucket", use_container_width=True, disabled
 
     # ── CLASSIFICATION (AQI Bucket) ─────────────────────────────────────────
     # Both saved separately → manual 2-step: transform then predict
-    clf_transformer = clf_bundle["clf_transformer"]  # ColumnTransformer
+    clf_transformer = clf_bundle["transformer"]  # ColumnTransformer
     xgb_model       = clf_bundle["xgb"]              # XGBClassifier
     label_encoder   = clf_bundle["label_encoder"]    # LabelEncoder
     x_clf_trans     = clf_transformer.transform(input_df)
