@@ -16,7 +16,7 @@ def load_models():
 
     with open("aqi_classifier.pkl", "rb") as f:
         clf_bundle = pickle.load(f)
-    # clf_bundle["cl_transformer"] → ColumnTransformer (RobustScaler + OrdinalEncoder)
+    # clf_bundle["clf_transformer"] → ColumnTransformer (RobustScaler + OrdinalEncoder)
     # clf_bundle["xgb"]            → XGBClassifier (standalone, NOT a Pipeline)
     # clf_bundle["label_encoder"]  → LabelEncoder
     # clf_bundle["classes"]        → le.classes_.tolist()
@@ -84,7 +84,7 @@ if st.button("🔍 Predict AQI & AQI Bucket", use_container_width=True, disabled
 
     # ── CLASSIFICATION (AQI Bucket) ─────────────────────────────────────────
     # Both saved separately → manual 2-step: transform then predict
-    clf_transformer = clf_bundle["cl_transformer"]  # ColumnTransformer
+    clf_transformer = clf_bundle["clf_transformer"]  # ColumnTransformer
     xgb_model       = clf_bundle["xgb"]              # XGBClassifier
     label_encoder   = clf_bundle["label_encoder"]    # LabelEncoder
     x_clf_trans     = clf_transformer.transform(input_df)
