@@ -88,12 +88,12 @@ footer { visibility: hidden !important; }
     margin-top: 0.4rem;
 }
 
-.panel {
+/* Style column containers as panels */
+div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] > div[data-testid="stVerticalBlockBorderWrapper"] > div > div[data-testid="stVerticalBlock"] {
     background: rgba(255,255,255,0.03);
     border: 1px solid rgba(78,202,160,0.12);
     border-radius: 16px;
-    padding: 1.4rem 1.6rem;
-    height: 100%;
+    padding: 1.2rem 1.4rem;
 }
 
 .divider {
@@ -230,7 +230,6 @@ left_col, right_col = st.columns([1, 1.4], gap="large")
 # LEFT: INPUTS
 # ═══════════════════════════════
 with left_col:
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
     st.markdown("#### 📋 Input Parameters")
 
     predict_clicked = st.button("🔍 Predict & Classify AQI")
@@ -251,13 +250,11 @@ with left_col:
         o3      = st.number_input("O3 (µg/m³)",      min_value=0.0, value=40.0,  step=0.1)
         benzene = st.number_input("Benzene (µg/m³)", min_value=0.0, value=2.5,   step=0.01)
 
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # ═══════════════════════════════
 # RIGHT: RESULTS
 # ═══════════════════════════════
 with right_col:
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
 
     # ── Panel header + legend on same row ──
     _chips = ""
@@ -401,7 +398,6 @@ with right_col:
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # ── FOOTER ────────────────────────────────────────────────
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
