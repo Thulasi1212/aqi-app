@@ -308,10 +308,12 @@ with right_col:
         if r['proba'] is not None:
             st.markdown("**🧾 Classifier Report — Probability per Category**")
 
-            # Build DataFrame using inverse_transform on all class indices
-            # clf_le.classes_ is already in string form; indices = range(len(classes_))
-            all_indices   = np.arange(len(r['class_labels']))
-            decoded_names = clf_le.inverse_transform(all_indices)   # ['Good','Poor',...]
+            # inverse_transform every class index → guaranteed string labels
+            # clf_le.classes_ order matches proba array order exactly
+            n_classes     = len(r['proba'])
+            all_indices   = list(range(n_classes))
+            # inverse_transform converts [0,1,2,...] → ['Good','Poor','Severe',...]
+            decoded_names = [str(clf_le.inverse_transform([i])[0]) for i in all_indices]
 
             prob_df = pd.DataFrame({
                 'Category':      decoded_names,
@@ -330,12 +332,42 @@ with right_col:
             )
             st.dataframe(styled, use_container_width=True, hide_index=True)
 
-            # Bar chart
-            st.bar_chart(
-                prob_df.set_index('Category')['Probability %'],
-                use_container_width=True,
-                color="#4ecaa0"
+            # Bar chart using plotly — ensures string category labels on x-axis
+            import plotly.graph_objects as go
+
+            bar_colors = [
+                AQI_COLORS.get(cat, "#4ecaa0") if cat == r['aqi_category'] else "rgba(78,202,160,0.35)"
+                for cat in prob_df['Category']
+            ]
+
+            fig = go.Figure(go.Bar(
+                x=prob_df['Category'].tolist(),        # string labels from inverse_transform
+                y=prob_df['Probability %'].tolist(),
+                marker_color=bar_colors,
+                text=[f"{v:.1f}%" for v in prob_df['Probability %']],
+                textposition='outside',
+                textfont=dict(color='#e8f4f0', size=11),
+            ))
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#e8f4f0', family='DM Sans'),
+                xaxis=dict(
+                    tickfont=dict(size=11, color='#7fb8a8'),
+                    gridcolor='rgba(78,202,160,0.08)',
+                    title=None,
+                ),
+                yaxis=dict(
+                    tickfont=dict(size=11, color='#7fb8a8'),
+                    gridcolor='rgba(78,202,160,0.08)',
+                    title='Probability %',
+                    titlefont=dict(color='#7fb8a8'),
+                ),
+                margin=dict(t=20, b=10, l=10, r=10),
+                height=280,
+                showlegend=False,
             )
+            st.plotly_chart(fig, use_container_width=True)
 
         # ── Input summary ──
         with st.expander("📋 View Input Summary"):
