@@ -221,28 +221,6 @@ if 'results' not in st.session_state:
 st.markdown('<div class="main-title">🌿 AQI Predictor & Classifier</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Enter pollutant readings to predict the AQI value and classify the air quality category</div>', unsafe_allow_html=True)
 
-# ── LEGEND (top of page) ──────────────────────────────────
-CAT_COLORS_GLOBAL = {
-    "Good":"#00c853","Satisfactory":"#aeea00","Moderate":"#ffd600",
-    "Moderately Polluted":"#ffd600","Poor":"#ff6d00","Very Poor":"#dd2c00","Severe":"#c0392b",
-}
-_chips = ""
-for _idx in sorted(label_mapping.keys()):
-    _cat = label_mapping[_idx]
-    _dot = CAT_COLORS_GLOBAL.get(_cat, "#4ecaa0")
-    _chips += (
-        f'<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 4px 2px 0;'
-        f'background:rgba(255,255,255,0.04);border:1px solid rgba(78,202,160,0.12);'
-        f'border-radius:5px;padding:2px 7px;white-space:nowrap;">'
-        f'<span style="width:7px;height:7px;border-radius:50%;background:{_dot};display:inline-block;flex-shrink:0;"></span>'
-        f'<span style="color:#7fb8a8;font-size:0.7rem;">{_idx}=<b style="color:#e8f4f0;">{_cat}</b></span>'
-        f'</span>'
-    )
-st.markdown(
-    f'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-bottom:0.6rem;">'
-    f'<span style="color:#4a7a68;font-size:0.7rem;margin-right:4px;">🔑 Labels:</span>{_chips}</div>',
-    unsafe_allow_html=True
-)
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 
 # ── MAIN TWO-COLUMN LAYOUT ────────────────────────────────
@@ -280,7 +258,28 @@ with left_col:
 # ═══════════════════════════════
 with right_col:
     st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.markdown("#### 📊 Prediction Results")
+
+    # ── Panel header + legend on same row ──
+    _chips = ""
+    for _idx in sorted(label_mapping.keys()):
+        _cat = label_mapping[_idx]
+        _dot = AQI_COLORS.get(_cat, "#4ecaa0")
+        _chips += (
+            f'<span style="display:inline-flex;align-items:center;gap:3px;margin-left:4px;'
+            f'background:rgba(255,255,255,0.04);border:1px solid rgba(78,202,160,0.1);'
+            f'border-radius:4px;padding:1px 5px;white-space:nowrap;">'
+            f'<span style="width:6px;height:6px;border-radius:50%;background:{_dot};display:inline-block;"></span>'
+            f'<span style="color:#c0ccc8;font-size:0.65rem;">{_idx}=<b style="color:#e8f4f0;">{_cat}</b></span>'
+            f'</span>'
+        )
+    st.markdown(
+        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;">'
+        f'<span style="font-family:Syne,sans-serif;font-size:1.1rem;font-weight:700;color:#e8f4f0;">📊 Prediction Results</span>'
+        f'<div style="display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;">'
+        f'<span style="color:#4a7a68;font-size:0.62rem;margin-right:3px;">🔑</span>{_chips}'
+        f'</div></div>',
+        unsafe_allow_html=True
+    )
 
     # Run prediction when button clicked
     if predict_clicked:
