@@ -360,8 +360,7 @@ with right_col:
                 yaxis=dict(
                     tickfont=dict(size=11, color='#7fb8a8'),
                     gridcolor='rgba(78,202,160,0.08)',
-                    title='Probability %',
-                    titlefont=dict(color='#7fb8a8'),
+                    title=dict(text='Probability %', font=dict(color='#7fb8a8')),
                 ),
                 margin=dict(t=20, b=10, l=10, r=10),
                 height=280,
