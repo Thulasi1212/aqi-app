@@ -164,12 +164,17 @@ try:
     reg_model       = reg_loaded['trfr']            # RandomForestRegressor
     clf_pipeline    = clf_loaded['pipeline']        # Full Pipeline
     clf_le          = clf_loaded['label_encoder']   # LabelEncoder
-    # Build label_mapping: try pkl key first, fall back to LabelEncoder classes_
-    if 'label_mapping' in clf_loaded and clf_loaded['label_mapping']:
-        raw_map = clf_loaded['label_mapping']
-        label_mapping = {int(k): str(v) for k, v in raw_map.items()}
-    else:
-        label_mapping = {i: str(c) for i, c in enumerate(clf_le.classes_)}
+    # Hardcoded from pkl inspection: {0:'Good',1:'Moderate',2:'Poor',3:'Satisfactory',4:'Severe',5:'Very Poor'}
+    # Also try to read from classes_ dynamically in case pkl changes
+    try:
+        classes = [str(c) for c in clf_le.classes_]
+        # classes_ is already strings if training was done correctly
+        if all(not c.isdigit() for c in classes):
+            label_mapping = {i: c for i, c in enumerate(classes)}
+        else:
+            raise ValueError("classes_ are integers")
+    except Exception:
+        label_mapping = {0:'Good', 1:'Moderate', 2:'Poor', 3:'Satisfactory', 4:'Severe', 5:'Very Poor'}
 except Exception as e:
     st.error(f"Error loading models: {e}")
     st.stop()
@@ -332,9 +337,10 @@ with right_col:
                 "Severe":              "#c0392b",
             }
 
-            # Build legend: index → label
+            # Build legend from label_mapping: {0:'Good', 1:'Moderate', ...}
             legend_items = ""
-            for idx, cat in enumerate(sorted(set(r['prob_categories']))):
+            for idx in sorted(label_mapping.keys()):
+                cat = label_mapping[idx]
                 dot = CAT_COLORS.get(cat, "#4ecaa0")
                 legend_items += (
                     f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' 
