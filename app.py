@@ -147,8 +147,9 @@ if not CITIES:
 
 # ── UI ────────────────────────────────────────────────────
 st.markdown('<div class="main-title">🌿 AQI Predictor</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Predict Air Quality Index value & category from pollutant readings</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Predict Air Quality Index value & classify category from pollutant readings</div>', unsafe_allow_html=True)
 
+# ── INPUTS ────────────────────────────────────────────────
 st.markdown("### 📍 Location")
 city = st.selectbox("City", CITIES, label_visibility="collapsed")
 
@@ -169,9 +170,13 @@ with col2:
 
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 
-if st.button("🔍 Predict AQI"):
-    # Input DataFrame — column order matches transformer's feature_names_in_:
-    # ['City', 'PM2.5', 'NO', 'NO2', 'NOx', 'CO', 'SO2', 'O3', 'Benzene']
+# ── BUTTON ────────────────────────────────────────────────
+predict_clicked = st.button("🔍 Predict & Classify AQI")
+
+# ── RESULT PLACEHOLDER (renders above inputs on rerun via session_state) ──
+result_slot = st.empty()
+
+if predict_clicked:
     input_df = pd.DataFrame([{
         'City':    city,
         'PM2.5':   pm25,
@@ -186,23 +191,22 @@ if st.button("🔍 Predict AQI"):
 
     try:
         # Regressor: manually transform then predict (not a pipeline)
-        X_transformed = reg_transformer.transform(input_df)
-        aqi_value = reg_model.predict(X_transformed)[0]
+        X_transformed  = reg_transformer.transform(input_df)
+        aqi_value      = reg_model.predict(X_transformed)[0]
 
-        # Classifier: pipeline handles transform internally
-        aqi_encoded = clf_pipeline.predict(input_df)[0]
-        aqi_category = clf_le.inverse_transform([aqi_encoded])[0]
+        # Classifier: pipeline handles transform + predict internally
+        aqi_encoded    = clf_pipeline.predict(input_df)[0]
+        aqi_category   = clf_le.inverse_transform([aqi_encoded])[0]
+
+        # Class probabilities for classifier report
+        if hasattr(clf_pipeline, 'predict_proba'):
+            proba       = clf_pipeline.predict_proba(input_df)[0]
+            class_names = clf_le.classes_
+        else:
+            proba       = None
+            class_names = clf_le.classes_
 
         color = AQI_COLORS.get(aqi_category, "#4ecaa0")
-
-        st.markdown(f"""
-        <div class="result-box">
-            <div style="color:#7fb8a8; font-size:0.9rem; margin-bottom:0.5rem; letter-spacing:0.1em;">PREDICTED AQI</div>
-            <div class="aqi-value">{aqi_value:.1f}</div>
-            <div class="aqi-label" style="color:{color};">● {aqi_category}</div>
-            <div style="color:#7fb8a8; font-size:0.85rem; margin-top:1rem;">📍 {city}</div>
-        </div>
-        """, unsafe_allow_html=True)
 
         advisories = {
             "Good":                "✅ Air quality is satisfactory. Enjoy outdoor activities freely.",
@@ -212,7 +216,77 @@ if st.button("🔍 Predict AQI"):
             "Very Poor":           "🔴 Health alert — everyone may experience serious effects. Avoid all outdoor activities.",
             "Severe":              "🚨 Emergency conditions. The entire population is likely to be affected. Stay indoors.",
         }
-        st.info(advisories.get(aqi_category, "Monitor air quality regularly."))
+
+        # ── RESULT SECTION ────────────────────────────────
+        with result_slot.container():
+            st.markdown("<hr class='divider'>", unsafe_allow_html=True)
+            st.markdown("## 📊 Prediction Results")
+
+            # ── ROW 1: AQI Value + Category side by side ──
+            r1, r2 = st.columns(2)
+
+            with r1:
+                st.markdown(f"""
+                <div class="result-box">
+                    <div style="color:#7fb8a8; font-size:0.8rem; letter-spacing:0.12em; margin-bottom:0.4rem;">
+                        📈 REGRESSION · AQI VALUE
+                    </div>
+                    <div class="aqi-value">{aqi_value:.1f}</div>
+                    <div style="color:#7fb8a8; font-size:0.8rem; margin-top:0.6rem;">
+                        RandomForest Regressor
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with r2:
+                st.markdown(f"""
+                <div class="result-box">
+                    <div style="color:#7fb8a8; font-size:0.8rem; letter-spacing:0.12em; margin-bottom:0.4rem;">
+                        🏷️ CLASSIFICATION · CATEGORY
+                    </div>
+                    <div class="aqi-label" style="color:{color}; font-size:1.6rem; font-weight:800; margin: 0.6rem 0;">
+                        ● {aqi_category}
+                    </div>
+                    <div style="color:#7fb8a8; font-size:0.8rem; margin-top:0.6rem;">
+                        XGBoost Classifier
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # ── Advisory ──────────────────────────────────
+            st.info(advisories.get(aqi_category, "Monitor air quality regularly."))
+
+            # ── CLASSIFIER REPORT: Probability per class ──
+            if proba is not None:
+                st.markdown("### 🧾 Classifier Report")
+                st.markdown("Probability distribution across all AQI categories:")
+
+                prob_df = pd.DataFrame({
+                    'Category':    class_names,
+                    'Probability': [round(float(p) * 100, 2) for p in proba]
+                }).sort_values('Probability', ascending=False).reset_index(drop=True)
+
+                # Highlight predicted class
+                def highlight_predicted(row):
+                    if row['Category'] == aqi_category:
+                        return ['background-color: rgba(78,202,160,0.2); font-weight:bold'] * len(row)
+                    return [''] * len(row)
+
+                styled_df = prob_df.style.apply(highlight_predicted, axis=1).format({'Probability': '{:.2f}%'})
+                st.dataframe(styled_df, use_container_width=True, hide_index=True)
+
+                # Bar chart
+                st.bar_chart(
+                    prob_df.set_index('Category')['Probability'],
+                    use_container_width=True,
+                    color="#4ecaa0"
+                )
+
+            # ── Input Summary ─────────────────────────────
+            with st.expander("📋 Input Summary"):
+                st.dataframe(input_df, use_container_width=True, hide_index=True)
+
+            st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Prediction failed: {e}")
