@@ -337,22 +337,21 @@ with right_col:
                 "Severe":              "#c0392b",
             }
 
-            # Build legend from label_mapping: {0:'Good', 1:'Moderate', ...}
-            legend_items = ""
+            # Compact legend top-right, inline chips
+            legend_chips = ""
             for idx in sorted(label_mapping.keys()):
                 cat = label_mapping[idx]
                 dot = CAT_COLORS.get(cat, "#4ecaa0")
-                legend_items += (
-                    f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' 
-                    f'<span style="width:11px;height:11px;border-radius:50%;background:{dot};display:inline-block;"></span>' 
-                    f'<span style="color:#7fb8a8;font-size:0.78rem;">{idx} &nbsp;=&nbsp; <strong style="color:#e8f4f0;">{cat}</strong></span>' 
-                    f'</div>'
+                legend_chips += (
+                    f'<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 4px 2px 0;'
+                    f'background:rgba(255,255,255,0.04);border:1px solid rgba(78,202,160,0.1);'
+                    f'border-radius:5px;padding:2px 6px;white-space:nowrap;">'
+                    f'<span style="width:7px;height:7px;border-radius:50%;background:{dot};display:inline-block;flex-shrink:0;"></span>'
+                    f'<span style="color:#7fb8a8;font-size:0.7rem;">{idx}=<b style="color:#e8f4f0;">{cat}</b></span>'
+                    f'</span>'
                 )
             st.markdown(
-                f'<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(78,202,160,0.12);'
-                f'border-radius:10px;padding:0.75rem 1rem;margin-bottom:0.9rem;">' 
-                f'<div style="color:#7fb8a8;font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.5rem;">🔑 Label Legend</div>' 
-                f'{legend_items}</div>',
+                f'<div style="display:flex;justify-content:flex-end;flex-wrap:wrap;margin-bottom:0.6rem;">{legend_chips}</div>',
                 unsafe_allow_html=True
             )
 
