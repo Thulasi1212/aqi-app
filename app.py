@@ -156,8 +156,12 @@ try:
     reg_model       = reg_loaded['trfr']            # RandomForestRegressor
     clf_pipeline    = clf_loaded['pipeline']        # Full Pipeline
     clf_le          = clf_loaded['label_encoder']   # LabelEncoder
-    # {0:'Good', 1:'Moderate', 2:'Poor', 3:'Satisfactory', 4:'Severe', 5:'Very Poor'}
-    label_mapping   = {int(k): str(v) for k, v in clf_loaded['label_mapping'].items()}
+    # Build label_mapping: try pkl key first, fall back to LabelEncoder classes_
+    if 'label_mapping' in clf_loaded and clf_loaded['label_mapping']:
+        raw_map = clf_loaded['label_mapping']
+        label_mapping = {int(k): str(v) for k, v in raw_map.items()}
+    else:
+        label_mapping = {i: str(c) for i, c in enumerate(clf_le.classes_)}
 except Exception as e:
     st.error(f"Error loading models: {e}")
     st.stop()
@@ -356,7 +360,6 @@ with right_col:
                 yaxis=dict(
                     tickfont=dict(size=11, color='#7fb8a8'),
                     gridcolor='rgba(78,202,160,0.08)',
-                    title=dict(text='Probability %', font=dict(color='#7fb8a8')),
                 ),
                 margin=dict(t=20, b=10, l=10, r=10),
                 height=280,
@@ -366,7 +369,7 @@ with right_col:
 
         # ── Input summary ──
         with st.expander("📋 View Input Summary"):
-            st.dataframe(r['input_df'], use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(r['input_df']), use_container_width=True, hide_index=True)
 
     else:
         st.markdown("""
