@@ -1,127 +1,225 @@
 import streamlit as st
 import pickle
+import numpy as np
 import pandas as pd
 
-st.set_page_config(page_title="AQI Predictor", page_icon="🌫️", layout="centered")
-st.title("🌫️ AQI Predictor")
-st.markdown("Enter pollutant values and city to predict **AQI** and **AQI Bucket**.")
+# ── PAGE CONFIG ───────────────────────────────────────────
+st.set_page_config(
+    page_title="AQI Predictor",
+    page_icon="🌿",
+    layout="centered"
+)
 
-# ─── Load both pkl files ───────────────────────────────────────────────────────
+# ── CUSTOM CSS ────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+
+html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
+h1, h2, h3 { font-family: 'Syne', sans-serif; }
+
+.stApp {
+    background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 50%, #0f2318 100%);
+    color: #e8f4f0;
+}
+
+.block-container { padding-top: 2rem; }
+
+.main-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.6rem;
+    font-weight: 800;
+    background: linear-gradient(90deg, #4ecaa0, #56d4e8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-align: center;
+    margin-bottom: 0.2rem;
+}
+
+.subtitle {
+    text-align: center;
+    color: #7fb8a8;
+    font-size: 0.95rem;
+    margin-bottom: 2rem;
+}
+
+.result-box {
+    background: rgba(78, 202, 160, 0.08);
+    border: 1px solid rgba(78, 202, 160, 0.3);
+    border-radius: 16px;
+    padding: 1.8rem;
+    margin-top: 1.5rem;
+    text-align: center;
+}
+
+.aqi-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 3.5rem;
+    font-weight: 800;
+    color: #4ecaa0;
+}
+
+.aqi-label {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-top: 0.3rem;
+}
+
+.divider {
+    border: none;
+    border-top: 1px solid rgba(78,202,160,0.15);
+    margin: 1.5rem 0;
+}
+
+div[data-testid="stNumberInput"] input,
+div[data-testid="stSelectbox"] > div {
+    background: rgba(255,255,255,0.05) !important;
+    border: 1px solid rgba(78,202,160,0.2) !important;
+    border-radius: 8px !important;
+    color: #e8f4f0 !important;
+}
+
+div[data-testid="stButton"] > button {
+    background: linear-gradient(90deg, #4ecaa0, #38b48a);
+    color: #0f1923;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    border: none;
+    border-radius: 10px;
+    padding: 0.7rem 2rem;
+    width: 100%;
+    transition: opacity 0.2s;
+}
+div[data-testid="stButton"] > button:hover { opacity: 0.85; }
+</style>
+""", unsafe_allow_html=True)
+
+# ── LOAD MODELS ───────────────────────────────────────────
 @st.cache_resource
 def load_models():
-    with open("aqi_pipeline.pkl", "rb") as f:
-        reg_bundle = pickle.load(f)
-    # reg_bundle["transformer"] → ColumnTransformer (StandardScaler + OrdinalEncoder)
-    # reg_bundle["trfr"]        → RandomForestRegressor
-
-    with open("aqi_classifier.pkl", "rb") as f:
-        clf_bundle = pickle.load(f)
-    # clf_bundle["clf_transformer"] → ColumnTransformer (RobustScaler + OrdinalEncoder)
-    # clf_bundle["xgb"]            → XGBClassifier (standalone, NOT a Pipeline)
-    # clf_bundle["label_encoder"]  → LabelEncoder
-    # clf_bundle["classes"]        → le.classes_.tolist()
-
-    return reg_bundle, clf_bundle
+    with open('aqi_predictor.pkl', 'rb') as f:
+        reg = pickle.load(f)
+    with open('aqi_classifier.pkl', 'rb') as f:
+        clf = pickle.load(f)
+    return reg, clf
 
 try:
-    reg_bundle, clf_bundle = load_models()
-    models_loaded = True
-except FileNotFoundError as e:
-    st.error(f"❌ Model file not found: {e}. "
-             "Place aqi_pipeline.pkl and aqi_classifier.pkl in the same folder as app.py.")
-    models_loaded = False
+    reg_loaded, clf_loaded = load_models()
+    # Regressor: NOT a pipeline — separate transformer and model
+    reg_transformer = reg_loaded['transformer']   # ColumnTransformer
+    reg_model       = reg_loaded['trfr']           # RandomForestRegressor
+    # Classifier: full Pipeline + LabelEncoder
+    clf_pipeline    = clf_loaded['pipeline']       # Pipeline(preprocessor + model)
+    clf_le          = clf_loaded['label_encoder']  # LabelEncoder
+except Exception as e:
+    st.error(f"Error loading models: {e}")
+    st.stop()
 
-# ─── Input form ───────────────────────────────────────────────────────────────
-st.markdown("---")
-st.subheader("📥 Input Features")
+# ── AQI CATEGORY COLORS ───────────────────────────────────
+AQI_COLORS = {
+    "Good":                "#00e400",
+    "Satisfactory":        "#92d050",
+    "Moderately Polluted": "#ffff00",
+    "Poor":                "#ff7e00",
+    "Very Poor":           "#ff0000",
+    "Severe":              "#c0392b",
+}
 
-cities = sorted([
-    "Ahmedabad", "Aizawl", "Amaravati", "Amritsar", "Bengaluru", "Bhopal",
-    "Brajrajnagar", "Chandigarh", "Chennai", "Coimbatore", "Delhi", "Ernakulam",
-    "Gurugram", "Guwahati", "Hyderabad", "Jaipur", "Jorapokhar", "Kochi",
-    "Kolkata", "Lucknow", "Mumbai", "Munger", "Nagpur", "Patna", "Shillong",
-    "Talcher", "Thiruvananthapuram", "Visakhapatnam"
-])
+# ── CITY LIST ─────────────────────────────────────────────
+# Try to extract from OrdinalEncoder categories in reg_transformer
+CITIES = []
+for name, t, cols in reg_transformer.transformers:
+    if name == 'cat' and hasattr(t, 'categories_'):
+        CITIES = sorted(t.categories_[0].tolist())
+        break
 
+if not CITIES:
+    # Fallback city list (standard Indian AQI dataset cities)
+    CITIES = sorted([
+        'Ahmedabad', 'Aizawl', 'Amaravati', 'Amritsar', 'Bengaluru',
+        'Bhopal', 'Brajrajnagar', 'Chandigarh', 'Chennai', 'Coimbatore',
+        'Delhi', 'Ernakulam', 'Gurugram', 'Guwahati', 'Hyderabad',
+        'Jaipur', 'Jorapokhar', 'Kochi', 'Kolkata', 'Lucknow',
+        'Mumbai', 'Nagpur', 'Patna', 'Shillong', 'Talcher',
+        'Thiruvananthapuram', 'Visakhapatnam'
+    ])
+
+# ── UI ────────────────────────────────────────────────────
+st.markdown('<div class="main-title">🌿 AQI Predictor</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Predict Air Quality Index value & category from pollutant readings</div>', unsafe_allow_html=True)
+
+st.markdown("### 📍 Location")
+city = st.selectbox("City", CITIES, label_visibility="collapsed")
+
+st.markdown("### 🧪 Pollutant Readings")
 col1, col2 = st.columns(2)
 
 with col1:
-    city    = st.selectbox("🏙️ City", cities)
-    pm25    = st.number_input("PM2.5 (µg/m³)",  min_value=0.0, max_value=1000.0, value=50.0,  step=0.1)
-    no      = st.number_input("NO (µg/m³)",      min_value=0.0, max_value=500.0,  value=10.0,  step=0.1)
-    no2     = st.number_input("NO2 (µg/m³)",     min_value=0.0, max_value=500.0,  value=20.0,  step=0.1)
-    nox     = st.number_input("NOx (ppb)",        min_value=0.0, max_value=500.0,  value=30.0,  step=0.1)
+    pm25    = st.number_input("PM2.5 (µg/m³)",  min_value=0.0, value=45.0,  step=0.1)
+    no      = st.number_input("NO (µg/m³)",      min_value=0.0, value=10.0,  step=0.1)
+    no2     = st.number_input("NO2 (µg/m³)",     min_value=0.0, value=25.0,  step=0.1)
+    nox     = st.number_input("NOx (µg/m³)",     min_value=0.0, value=35.0,  step=0.1)
 
 with col2:
-    co      = st.number_input("CO (mg/m³)",       min_value=0.0, max_value=100.0,  value=1.0,   step=0.01)
-    so2     = st.number_input("SO2 (µg/m³)",      min_value=0.0, max_value=500.0,  value=10.0,  step=0.1)
-    o3      = st.number_input("O3 (µg/m³)",       min_value=0.0, max_value=500.0,  value=30.0,  step=0.1)
-    benzene = st.number_input("Benzene (µg/m³)",  min_value=0.0, max_value=100.0,  value=1.0,   step=0.01)
+    co      = st.number_input("CO (mg/m³)",      min_value=0.0, value=1.2,   step=0.01)
+    so2     = st.number_input("SO2 (µg/m³)",     min_value=0.0, value=15.0,  step=0.1)
+    o3      = st.number_input("O3 (µg/m³)",      min_value=0.0, value=40.0,  step=0.1)
+    benzene = st.number_input("Benzene (µg/m³)", min_value=0.0, value=2.5,   step=0.01)
 
-# ─── Predict button ────────────────────────────────────────────────────────────
-st.markdown("---")
+st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 
-if st.button("🔍 Predict AQI & AQI Bucket", use_container_width=True, disabled=not models_loaded):
-
+if st.button("🔍 Predict AQI"):
+    # Input DataFrame — column order matches transformer's feature_names_in_:
+    # ['City', 'PM2.5', 'NO', 'NO2', 'NOx', 'CO', 'SO2', 'O3', 'Benzene']
     input_df = pd.DataFrame([{
-        "PM2.5":   pm25,
-        "NO":      no,
-        "NO2":     no2,
-        "NOx":     nox,
-        "CO":      co,
-        "SO2":     so2,
-        "O3":      o3,
-        "Benzene": benzene,
-        "City":    city
+        'City':    city,
+        'PM2.5':   pm25,
+        'NO':      no,
+        'NO2':     no2,
+        'NOx':     nox,
+        'CO':      co,
+        'SO2':     so2,
+        'O3':      o3,
+        'Benzene': benzene
     }])
 
-    # ── REGRESSION (AQI value) ──────────────────────────────────────────────
-    # Both saved separately → manual 2-step: transform then predict
-    reg_transformer = reg_bundle["transformer"]   # ColumnTransformer
-    rf_model        = reg_bundle["trfr"]           # RandomForestRegressor
-    x_reg_trans     = reg_transformer.transform(input_df)
-    aqi_predicted   = rf_model.predict(x_reg_trans)[0]
+    try:
+        # Regressor: manually transform then predict (not a pipeline)
+        X_transformed = reg_transformer.transform(input_df)
+        aqi_value = reg_model.predict(X_transformed)[0]
 
-    # ── CLASSIFICATION (AQI Bucket) ─────────────────────────────────────────
-    # Both saved separately → manual 2-step: transform then predict
-    clf_transformer = clf_bundle["transformer"]  # ColumnTransformer
-    xgb_model       = clf_bundle["xgb"]              # XGBClassifier
-    label_encoder   = clf_bundle["label_encoder"]    # LabelEncoder
-    x_clf_trans     = clf_transformer.transform(input_df)
-    bucket_encoded  = xgb_model.predict(x_clf_trans)[0]
-    bucket_label    = label_encoder.inverse_transform([bucket_encoded])[0]
+        # Classifier: pipeline handles transform internally
+        aqi_encoded = clf_pipeline.predict(input_df)[0]
+        aqi_category = clf_le.inverse_transform([aqi_encoded])[0]
 
-    # ── Display results ──────────────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("📊 Prediction Results")
+        color = AQI_COLORS.get(aqi_category, "#4ecaa0")
 
-    res1, res2 = st.columns(2)
-    with res1:
-        st.metric(label="🌡️ Predicted AQI", value=f"{aqi_predicted:.2f}")
-    with res2:
-        bucket_icons = {
-            "Good":                "🟢",
-            "Satisfactory":        "🟡",
-            "Moderately Polluted": "🟠",
-            "Poor":                "🔴",
-            "Very Poor":           "🟣",
-            "Severe":              "⚫",
+        st.markdown(f"""
+        <div class="result-box">
+            <div style="color:#7fb8a8; font-size:0.9rem; margin-bottom:0.5rem; letter-spacing:0.1em;">PREDICTED AQI</div>
+            <div class="aqi-value">{aqi_value:.1f}</div>
+            <div class="aqi-label" style="color:{color};">● {aqi_category}</div>
+            <div style="color:#7fb8a8; font-size:0.85rem; margin-top:1rem;">📍 {city}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        advisories = {
+            "Good":                "✅ Air quality is satisfactory. Enjoy outdoor activities freely.",
+            "Satisfactory":        "🟡 Acceptable air quality. Unusually sensitive people should consider limiting prolonged outdoor exertion.",
+            "Moderately Polluted": "⚠️ Sensitive groups may experience health effects. General public is less likely to be affected.",
+            "Poor":                "🟠 Everyone may begin to experience health effects. Sensitive groups should avoid outdoor activity.",
+            "Very Poor":           "🔴 Health alert — everyone may experience serious effects. Avoid all outdoor activities.",
+            "Severe":              "🚨 Emergency conditions. The entire population is likely to be affected. Stay indoors.",
         }
-        icon = bucket_icons.get(bucket_label, "🔵")
-        st.metric(label="🗂️ AQI Bucket", value=f"{icon} {bucket_label}")
+        st.info(advisories.get(aqi_category, "Monitor air quality regularly."))
 
-    # ── Health advisory ──────────────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("💡 Health Advisory")
-    if aqi_predicted <= 50:
-        st.success("**Good** — Air quality is satisfactory. Enjoy outdoor activities.")
-    elif aqi_predicted <= 100:
-        st.info("**Satisfactory** — Acceptable air quality. Sensitive people should limit prolonged outdoor exertion.")
-    elif aqi_predicted <= 200:
-        st.warning("**Moderately Polluted** — Sensitive groups may experience health effects.")
-    elif aqi_predicted <= 300:
-        st.warning("**Poor** — Everyone may begin to experience health effects. Sensitive groups should limit outdoor activity.")
-    elif aqi_predicted <= 400:
-        st.error("**Very Poor** — Health alert: everyone may experience serious health effects. Avoid outdoor activity.")
-    else:
-        st.error("**Severe** — Health emergency. Stay indoors and keep windows closed.")
+    except Exception as e:
+        st.error(f"Prediction failed: {e}")
+
+# ── FOOTER ────────────────────────────────────────────────
+st.markdown("<hr class='divider'>", unsafe_allow_html=True)
+st.markdown(
+    "<div style='text-align:center; color:#3d6b5a; font-size:0.8rem;'>AQI Predictor · RandomForest Regressor + XGBoost Classifier</div>",
+    unsafe_allow_html=True
+)
