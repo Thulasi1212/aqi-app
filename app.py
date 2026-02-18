@@ -26,6 +26,14 @@ h1, h2, h3, h4 { font-family: 'Syne', sans-serif; }
 
 .block-container { padding: 1.5rem 2rem 1rem 2rem; }
 
+/* Hide Streamlit top toolbar (share/edit/github bar) */
+header[data-testid="stHeader"] { display: none !important; }
+#MainMenu { visibility: hidden !important; }
+footer { visibility: hidden !important; }
+[data-testid="stToolbar"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+.viewerBadge_container__1QSob { display: none !important; }
+
 .main-title {
     font-family: 'Syne', sans-serif;
     font-size: 2.2rem;
@@ -219,9 +227,10 @@ with left_col:
     st.markdown('<div class="panel">', unsafe_allow_html=True)
     st.markdown("#### 📋 Input Parameters")
 
-    city = st.selectbox("📍 City", CITIES)
-
+    predict_clicked = st.button("🔍 Predict & Classify AQI")
     st.markdown("<hr class='divider'>", unsafe_allow_html=True)
+
+    city = st.selectbox("📍 City", CITIES)
     st.markdown("**🧪 Pollutant Readings**")
 
     c1, c2 = st.columns(2)
@@ -236,7 +245,6 @@ with left_col:
         o3      = st.number_input("O3 (µg/m³)",      min_value=0.0, value=40.0,  step=0.1)
         benzene = st.number_input("Benzene (µg/m³)", min_value=0.0, value=2.5,   step=0.01)
 
-    predict_clicked = st.button("🔍 Predict & Classify AQI")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ═══════════════════════════════
@@ -312,60 +320,59 @@ with right_col:
 
         # ── Classifier Report ──
         if r['prob_categories']:
-            st.markdown('**🧾 Classifier Report — Probability per Category**')
+            st.markdown('**🧾 Classifier Report**')
 
-            # prob_df built entirely from plain Python strings stored in session_state
-            prob_df = pd.DataFrame({
-                'Category':      r['prob_categories'],
-                'Probability %': r['prob_values']
-            }).sort_values('Probability %', ascending=False).reset_index(drop=True)
+            CAT_COLORS = {
+                "Good":                "#00c853",
+                "Satisfactory":        "#aeea00",
+                "Moderate":            "#ffd600",
+                "Moderately Polluted": "#ffd600",
+                "Poor":                "#ff6d00",
+                "Very Poor":           "#dd2c00",
+                "Severe":              "#c0392b",
+            }
 
-            def highlight_row(row):
-                if row['Category'] == r['aqi_category']:
-                    return ['background-color: rgba(78,202,160,0.18); font-weight:bold; color:#4ecaa0'] * len(row)
-                return ['color:#c0ccc8'] * len(row)
-
-            styled = (
-                prob_df.style
-                .apply(highlight_row, axis=1)
-                .format({'Probability %': '{:.2f}%'})
+            # Build legend: index → label
+            legend_items = ""
+            for idx, cat in enumerate(sorted(set(r['prob_categories']))):
+                dot = CAT_COLORS.get(cat, "#4ecaa0")
+                legend_items += (
+                    f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' 
+                    f'<span style="width:11px;height:11px;border-radius:50%;background:{dot};display:inline-block;"></span>' 
+                    f'<span style="color:#7fb8a8;font-size:0.78rem;">{idx} &nbsp;=&nbsp; <strong style="color:#e8f4f0;">{cat}</strong></span>' 
+                    f'</div>'
+                )
+            st.markdown(
+                f'<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(78,202,160,0.12);'
+                f'border-radius:10px;padding:0.75rem 1rem;margin-bottom:0.9rem;">' 
+                f'<div style="color:#7fb8a8;font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.5rem;">🔑 Label Legend</div>' 
+                f'{legend_items}</div>',
+                unsafe_allow_html=True
             )
-            st.dataframe(styled, use_container_width=True, hide_index=True)
 
-            # Bar chart using plotly — ensures string category labels on x-axis
-            import plotly.graph_objects as go
-
-            bar_colors = [
-                AQI_COLORS.get(cat, "#4ecaa0") if cat == r['aqi_category'] else "rgba(78,202,160,0.35)"
-                for cat in prob_df['Category']
-            ]
-
-            fig = go.Figure(go.Bar(
-                x=prob_df['Category'].tolist(),        # string labels from inverse_transform
-                y=prob_df['Probability %'].tolist(),
-                marker_color=bar_colors,
-                text=[f"{v:.1f}%" for v in prob_df['Probability %']],
-                textposition='outside',
-                textfont=dict(color='#e8f4f0', size=11),
-            ))
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#e8f4f0', family='DM Sans'),
-                xaxis=dict(
-                    tickfont=dict(size=11, color='#7fb8a8'),
-                    gridcolor='rgba(78,202,160,0.08)',
-                    title=None,
-                ),
-                yaxis=dict(
-                    tickfont=dict(size=11, color='#7fb8a8'),
-                    gridcolor='rgba(78,202,160,0.08)',
-                ),
-                margin=dict(t=20, b=10, l=10, r=10),
-                height=280,
-                showlegend=False,
+            # HTML/CSS horizontal bar chart — zero dependencies
+            pairs = sorted(zip(r['prob_categories'], r['prob_values']), key=lambda x: -x[1])
+            bars = ""
+            for cat, prob in pairs:
+                col   = CAT_COLORS.get(cat, "#4ecaa0")
+                pred  = cat == r['aqi_category']
+                style = "font-weight:700;color:#4ecaa0;" if pred else "color:#b0c4be;"
+                star  = " ★" if pred else ""
+                bars += (
+                    f'<div style="margin-bottom:9px;">' 
+                    f'<div style="display:flex;justify-content:space-between;margin-bottom:2px;">' 
+                    f'<span style="font-size:0.8rem;{style}">{cat}{star}</span>' 
+                    f'<span style="font-size:0.8rem;{style}">{prob:.1f}%</span>' 
+                    f'</div>' 
+                    f'<div style="background:rgba(255,255,255,0.06);border-radius:5px;height:9px;">' 
+                    f'<div style="width:{min(prob,100)}%;height:100%;background:{col};border-radius:5px;"></div>' 
+                    f'</div></div>'
+                )
+            st.markdown(
+                f'<div style="padding:0.3rem 0;">{bars}' 
+                f'<div style="color:#3d6b5a;font-size:0.7rem;margin-top:6px;">★ = predicted category</div></div>',
+                unsafe_allow_html=True
             )
-            st.plotly_chart(fig, use_container_width=True)
 
         # ── Input summary ──
         with st.expander("📋 View Input Summary"):
