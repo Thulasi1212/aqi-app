@@ -220,6 +220,29 @@ if 'results' not in st.session_state:
 # ── HEADER ────────────────────────────────────────────────
 st.markdown('<div class="main-title">🌿 AQI Predictor & Classifier</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Enter pollutant readings to predict the AQI value and classify the air quality category</div>', unsafe_allow_html=True)
+
+# ── LEGEND (top of page) ──────────────────────────────────
+CAT_COLORS_GLOBAL = {
+    "Good":"#00c853","Satisfactory":"#aeea00","Moderate":"#ffd600",
+    "Moderately Polluted":"#ffd600","Poor":"#ff6d00","Very Poor":"#dd2c00","Severe":"#c0392b",
+}
+_chips = ""
+for _idx in sorted(label_mapping.keys()):
+    _cat = label_mapping[_idx]
+    _dot = CAT_COLORS_GLOBAL.get(_cat, "#4ecaa0")
+    _chips += (
+        f'<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 4px 2px 0;'
+        f'background:rgba(255,255,255,0.04);border:1px solid rgba(78,202,160,0.12);'
+        f'border-radius:5px;padding:2px 7px;white-space:nowrap;">'
+        f'<span style="width:7px;height:7px;border-radius:50%;background:{_dot};display:inline-block;flex-shrink:0;"></span>'
+        f'<span style="color:#7fb8a8;font-size:0.7rem;">{_idx}=<b style="color:#e8f4f0;">{_cat}</b></span>'
+        f'</span>'
+    )
+st.markdown(
+    f'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-bottom:0.6rem;">'
+    f'<span style="color:#4a7a68;font-size:0.7rem;margin-right:4px;">🔑 Labels:</span>{_chips}</div>',
+    unsafe_allow_html=True
+)
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 
 # ── MAIN TWO-COLUMN LAYOUT ────────────────────────────────
@@ -310,10 +333,15 @@ with right_col:
             ''', unsafe_allow_html=True)
 
         with card2:
+            # Ensure string label — if aqi_category is still an int, decode it
+            _display_cat = r["aqi_category"]
+            if str(_display_cat).isdigit():
+                _display_cat = label_mapping.get(int(_display_cat), _display_cat)
+            _cat_color = AQI_COLORS.get(str(_display_cat), '#4ecaa0')
             st.markdown(f'''
             <div class="result-card">
                 <div class="section-label">🏷️ Classification · Category</div>
-                <div class="aqi-category" style="color:{color}; margin: 0.5rem 0;">● {r["aqi_category"]}</div>
+                <div class="aqi-category" style="color:{_cat_color}; margin: 0.5rem 0;">● {_display_cat}</div>
                 <div class="model-tag">XGBoost Classifier</div>
             </div>
             ''', unsafe_allow_html=True)
@@ -337,23 +365,7 @@ with right_col:
                 "Severe":              "#c0392b",
             }
 
-            # Compact legend top-right, inline chips
-            legend_chips = ""
-            for idx in sorted(label_mapping.keys()):
-                cat = label_mapping[idx]
-                dot = CAT_COLORS.get(cat, "#4ecaa0")
-                legend_chips += (
-                    f'<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 4px 2px 0;'
-                    f'background:rgba(255,255,255,0.04);border:1px solid rgba(78,202,160,0.1);'
-                    f'border-radius:5px;padding:2px 6px;white-space:nowrap;">'
-                    f'<span style="width:7px;height:7px;border-radius:50%;background:{dot};display:inline-block;flex-shrink:0;"></span>'
-                    f'<span style="color:#7fb8a8;font-size:0.7rem;">{idx}=<b style="color:#e8f4f0;">{cat}</b></span>'
-                    f'</span>'
-                )
-            st.markdown(
-                f'<div style="display:flex;justify-content:flex-end;flex-wrap:wrap;margin-bottom:0.6rem;">{legend_chips}</div>',
-                unsafe_allow_html=True
-            )
+
 
             # HTML/CSS horizontal bar chart — zero dependencies
             pairs = sorted(zip(r['prob_categories'], r['prob_values']), key=lambda x: -x[1])
