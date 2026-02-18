@@ -161,7 +161,7 @@ def load_models():
 try:
     reg_loaded, clf_loaded = load_models()
     reg_transformer = reg_loaded['transformer']    # ColumnTransformer (not a pipeline)
-    reg_model       = reg_loaded['trfr']            # RandomForestRegressor
+    reg_model       = reg_loaded['trfr']            # XGBRegressor
     clf_pipeline    = clf_loaded['pipeline']        # Full Pipeline
     clf_le          = clf_loaded['label_encoder']   # LabelEncoder
     # Hardcoded from pkl inspection: {0:'Good',1:'Moderate',2:'Poor',3:'Satisfactory',4:'Severe',5:'Very Poor'}
@@ -304,7 +304,7 @@ with right_col:
             <div class="result-card">
                 <div class="section-label">📈 Regression · AQI Value</div>
                 <div class="aqi-number">{r["aqi_value"]:.1f}</div>
-                <div class="model-tag">RandomForest Regressor</div>
+                <div class="model-tag">XGBoost Regressor</div>
             </div>
             ''', unsafe_allow_html=True)
 
@@ -382,6 +382,6 @@ with right_col:
 # ── FOOTER ────────────────────────────────────────────────
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 st.markdown(
-    "<div style='text-align:center; color:#3d6b5a; font-size:0.78rem;'>AQI Predictor · RandomForest Regressor + XGBoost Classifier</div>",
+    "<div style='text-align:center; color:#3d6b5a; font-size:0.78rem;'>AQI Predictor · XGBoost Regressor + XGBoost Classifier</div>",
     unsafe_allow_html=True
 )
